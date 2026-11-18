@@ -1,0 +1,135 @@
+﻿@page "/"
+@using BlazorWasmSuperHeroApi.Models
+@inject HttpClient Http
+
+<div class="container py-4">
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8 text-center">
+            <h1 class="display-5 fw-bold text-primary mb-3">SuperHero Search</h1>
+            <p class="text-muted">Busque por heróis e vilões usando a API oficial do SuperHero.</p>
+            
+            <div class="input-group shadow-sm">
+                <input type="text" class="form-control form-control-lg" placeholder="Ex: batman, ironman..."
+                       @bind="searchTerm" @bind:event="oninput" @onkeypress="HandleKeyPress" />
+                <button class="btn btn-primary px-4" type="button" @onclick="SearchHeroes" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Pesquisar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger shadow-sm" role="alert">
+            @errorMessage
+        </div>
+    }
+
+    @if (heroes != null && heroes.Any())
+    {
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            @foreach (var hero in heroes)
+            {
+                <div class="col">
+                    <div class="card h-100 shadow-sm border-0">
+                        <img src="@hero.Image.Url" class="card-img-top object-fit-cover" style="height: 300px;" alt="@hero.Name"
+                             referrerpolicy="no-referrer" @onerror="() => HandleImageError(hero)" />
+                        <div class="card-body">
+                            <h5 class="card-title fw-bold">@hero.Name <span
+                                class="text-muted fs-6">(@hero.Biography.FullName)</span></h5>
+                                <p class="card-text text-muted small mb-2"><strong>Editora:</strong> @hero.Biography.Publisher</p>
+                            
+                                <hr class="text-muted opacity-25">
+                            
+                                <h6 class="text-uppercase fs-7 text-secondary fw-bold">Powerstats</h6>
+                                <ul class="list-unstyled small mb-3">
+                                    <li>Inteligência: <strong>@hero.Powerstats.Intelligence</strong></li>
+                                    <li>Força: <strong>@hero.Powerstats.Strength</strong></li>
+                                    <li>Velocidade: <strong>@hero.Powerstats.Speed</strong></li>
+                                    <li>Combate: <strong>@hero.Powerstats.Combat</strong></li>
+                                </ul>
+
+                                <h6 class="text-uppercase fs-7 text-secondary fw-bold">Aparição</h6>
+                                <p class="small text-muted mb-0">@hero.Biography.FirstAppearance</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    else if (hasSearched && !isLoading)
+        {
+            <div class="text-center text-muted py-5">
+                <p class="fs-5">Nenhum personagem encontrado para "@searchTerm".</p>
+            </div>
+        }
+    </div>
+
+@code {
+    private string searchTerm = string.Empty;
+    private List<SuperHero>? heroes;
+    private bool isLoading = false;
+    private bool hasSearched = false;
+    
+    // ATENÇÃO: Substitua pelo seu token real gerado via GitHub
+    private readonly string accessToken = "1e611a5ce6920e740b1505f659a824e0a";
+
+    private async Task SearchHeroes()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return;
+
+        isLoading = true;
+        hasSearched = true;
+        errorMessage = string.Empty;
+        heroes = null;
+
+        try
+        {
+            // Montagem da URL baseada na documentação da API (php)
+            string url = $"https://www.superheroapi.com/api.php/{accessToken}/search/{searchTerm.Trim()}";
+            
+            var result = await Http.GetFromJsonAsync<SuperHeroResponse>(url);
+
+            if (result != null && result.Response.Equals("success", StringComparison.OrdinalIgnoreCase))
+            {
+                heroes = result.Results;
+            }
+            else
+            {
+                errorMessage = "Personagem não encontrado ou erro na resposta da API.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ocorreu um erro ao conectar com a API: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchHeroes();
+        }
+    }
+
+    private void HandleImageError(SuperHero hero)
+    {
+        // Usa um gerador de avatar seguro baseado no nome do herói como fallback visual perfeito
+        string heroNameEnc = System.Net.WebUtility.UrlEncode(hero.Name);
+        hero.Image.Url = $"https://ui-avatars.com/api/?name={heroNameEnc}&size=300&background=0d6efd&color=fff&bold=true";
+        StateHasChanged();
+    }
+
+    private string errorMessage = string.Empty;
+}
